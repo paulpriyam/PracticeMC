@@ -5,7 +5,9 @@ import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView.OnQueryTextListener
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.paging.LoadState
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.practice.databinding.ActivityMovieListBinding
@@ -56,11 +58,14 @@ class MovieListActivityPaging : AppCompatActivity() {
 
 
     private fun observe() {
-        viewModel.searchResult.observe(this) {
-            lifecycleScope.launch {
-                pagingAdapter.submitData(it)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.searchResult.collect {
+                    pagingAdapter.submitData(it)
+                }
             }
         }
+
     }
 
     private fun setAdapterLoadListener() {

@@ -9,7 +9,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView.OnQueryTextListener
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.practice.R
 import com.example.practice.databinding.ActivityMovieListBinding
@@ -34,7 +37,6 @@ class MovieListActivity : AppCompatActivity() {
     private val viewModel: MovieListViewModel by viewModels()
     private lateinit var movieListAdapter: MovieListAdapter
 
-    private val searchScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,42 +60,31 @@ class MovieListActivity : AppCompatActivity() {
     }
 
     private fun observe() {
-        viewModel.movieList.observe(this) {
-            Log.d("--->MLA", it.toString())
-            Log.d("--->MLA", it.movies?.size.toString())
-            if (!it.movies.isNullOrEmpty()) {
-                movieListAdapter.submitList(it.movies)
-            }
-        }
-    }
-
-    @OptIn(FlowPreview::class)
-    private fun subscribe() {
-
-        val queryFlow = MutableStateFlow("")
-        searchScope.launch {
-            queryFlow
-                .debounce(500)
-                .distinctUntilChanged()
-                .collectLatest {searchTerm->
-                    if(searchTerm.isEmpty()){
-                        movieListAdapter.submitList(emptyList())
-                    }else{
-                        viewModel.searchMovies(searchTerm)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED){
+                viewModel.movieList.collectLatest {
+                    Log.d("--->MLA", it.toString())
+                    if (it.isNotEmpty()) {
+                        movieListAdapter.submitList(it)
                     }
                 }
+            }
         }
+
+    }
+
+    private fun subscribe() {
         binding.svSearch.setOnQueryTextListener(object : OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                viewModel.searchMovies(query.orEmpty())
+                query?.let{
+                    viewModel.setSearchTerm(query)
+                }
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                // not required
-                searchScope.launch {
-                    queryFlow.debounce(300L).distinctUntilChanged()
-
+                newText?.let{
+                    viewModel.setSearchTerm(newText)
                 }
                 return true
             }
@@ -113,10 +104,5 @@ class MovieListActivity : AppCompatActivity() {
         }
         intent.putExtras(bundle)
         startActivity(intent)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        searchScope.cancel()
     }
 }
